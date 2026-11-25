@@ -14,6 +14,16 @@ A weekly overview of how Sarah and Alara get home from the Lycée International 
 - `route()` picks the trip home for a finishing time: school bus and walk first, then line 11 + Icilà, then line 11 + car pick-up at Collège du Rouret, then a car pick-up at the CIV.
 - Week letters alternate A/B over school weeks, starting with week B on 30 November 2026; holidays are skipped.
 
-## Updating
+## Automatic timetable updates
 
-Bus times are for the 2026–2027 school year: the line 11 timetable is valid from 31 August 2026 to 4 July 2027, and the 26S and 27S sheets from September 2026. Envibus usually changes them once a year, for the new school year. When Envibus publishes new times, update `SCHOOL` and `L11`, and add new school holidays to `holidays`.
+Every Monday a GitHub Actions job (`.github/workflows/update-timetable.yml`) runs `scripts/update_timetable.py`, which:
+
+- downloads the latest Envibus open-data timetable (GTFS, from data.gouv.fr) and extracts line 11 between the gare routière and Collège du Rouret / Les Trucs, for each weekday;
+- finds the current 26S and 27S timetable PDFs on their envibus.fr line pages and reads the afternoon return times;
+- writes `data/timetable.json`, which the page loads. If anything changed, the job saves it here and GitHub Pages republishes.
+
+If a download fails, the file looks out of date, or the timetable can't be read, the job stops without changing anything and GitHub emails you that the run failed. You can also run it by hand from **Actions → Update bus timetable → Run workflow**.
+
+The times written in `index.html` are only a fallback for when `data/timetable.json` can't be loaded.
+
+Cistes and Moulins times for 27S are not printed on its sheet; they are estimated as Place du Rouret + 4 minutes (marked ≈ on the page).

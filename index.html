@@ -104,7 +104,7 @@ details ul{margin:6px 0 0;padding-left:18px}
 <section class="band" style="padding-top:8px"><div class="wrap how">
   <div><h2>Plans changed?</h2>Tap <b>Need an Icilà?</b> to book a shuttle in your own Icilà account. Use stop <b>Chemin des Ribes</b> for home. Bookings open on Mondays at 9:00 for the next week. Icilà phone: 04 92 19 76 30.</div>
   <div><h2>18:00 finishes</h2>Take line 11 at 18:15 from the gare routière to <b>Collège du Rouret</b> (18:40). The car picks you up there. Icilà has no rides that late.</div>
-  <div><h2>Good to know</h2>The gare routière is a 5-minute walk from Place Bermond. The 26S and 27S are school lines and don't run in the holidays. Bus times are for the 2026–2027 school year (line 11 timetable valid 31 August 2026 to 4 July 2027).</div>
+  <div><h2>Good to know</h2>The gare routière is a 5-minute walk from Place Bermond. The 26S and 27S are school lines and don't run in the holidays. Bus times are checked automatically every week against Envibus (line 11 open data and the 26S/27S timetable sheets).</div>
 </div></section>
 
 <script>
@@ -119,7 +119,7 @@ const ENDS={
 };
 /* Ways home. days: 0=Mon..4=Fri. board: minutes needed after class ends. */
 const GR="Gare routière", PB="Place Bermond (CIV)";
-const SCHOOL=[
+let SCHOOL=[
   {line:"26S",from:PB,dep:"12:15",to:"Cistes",arr:"12:49",days:[2],board:5},
   {line:"27S",from:GR,dep:"12:15",to:"Cistes",arr:"≈12:52",days:[2],board:10},
   {line:"27S",from:GR,dep:"13:20",to:"Cistes",arr:"≈13:55",days:[2],board:10},
@@ -127,7 +127,17 @@ const SCHOOL=[
   {line:"26S",from:PB,dep:"17:15",to:"Cistes",arr:"17:58",days:[0,1,3,4],board:5},
   {line:"27S",from:GR,dep:"17:20",to:"Cistes",arr:"≈17:55",days:[0,1,3,4],board:10}
 ];
-const L11=[["07:10","07:35"],["07:50","08:16"],["08:50","09:16"],["09:35","10:01"],["10:40","11:06"],["11:20","11:45"],["12:15","12:40"],["12:50","13:15"],["13:55","14:20"],["14:35","15:00"],["15:40","16:05"],["16:20","16:46"],["17:25","17:50"],["18:15","18:40"],["19:10","19:35"],["20:00","20:25"]];
+let L11=[["07:10","07:35"],["07:50","08:16"],["08:50","09:16"],["09:35","10:01"],["10:40","11:06"],["11:20","11:45"],["12:15","12:40"],["12:50","13:15"],["13:55","14:20"],["14:35","15:00"],["15:40","16:05"],["16:20","16:46"],["17:25","17:50"],["18:15","18:40"],["19:10","19:35"],["20:00","20:25"]];
+let L11BY={},TT=null;
+const l11=d=>L11BY[d]||L11;
+/* Load the latest timetable (updated automatically from Envibus). Falls back to the times above. */
+fetch("data/timetable.json",{cache:"no-cache"}).then(r=>r.ok?r.json():null).then(j=>{
+  if(!j||!j.line11||!Array.isArray(j.school))return;
+  const ok=t=>typeof t==="string"&&/^≈?\d{2}:\d{2}$/.test(t);
+  const by={};for(const k of Object.keys(j.line11)){const rows=(j.line11[k]||[]).filter(r=>Array.isArray(r)&&ok(r[0])&&ok(r[1])).map(r=>[r[0],r[1]]);if(rows.length)by[k]=rows}
+  const sch=j.school.filter(x=>x&&ok(x.dep)&&ok(x.arr)&&Array.isArray(x.days)&&typeof x.line==="string").map(x=>({line:String(x.line).slice(0,4),from:x.from==="Place Bermond (CIV)"?"Place Bermond (CIV)":"Gare routière",dep:x.dep,to:"Cistes",arr:x.arr,days:x.days.filter(n=>Number.isInteger(n)&&n>=0&&n<5),board:x.board===5?5:10}));
+  if(Object.keys(by).length)L11BY=by;if(sch.length)SCHOOL=sch;TT=j;render();
+}).catch(()=>{});
 const m=t=>{const x=String(t).replace("≈","").split(":");return +x[0]*60+ +x[1]};
 const hm=n=>String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");
 
@@ -136,7 +146,7 @@ function route(end,d){
   if(end==="off")return{off:true,alts:[]};
   const E=m(end),c=[];
   for(const s of SCHOOL){if(s.days.includes(d)&&m(s.dep)>=E+s.board){const home=m(s.arr)+5;c.push({score:home+(s.from===GR?3:0),home,school:true,legs:[s],last:{kind:"walk",text:"Walk home from Cistes"},sum:`${s.line} at ${s.dep} from ${s.from==PB?"Place Bermond":"the gare routière"}, home ≈${hm(home)}`})}}
-  for(const [dep,arr] of L11){if(m(dep)>=E+10){
+  for(const [dep,arr] of l11(d)){if(m(dep)>=E+10){
     const leg={line:"11",from:GR,dep,to:"Les Trucs",arr};
     if(m(arr)<=1080){const home=m(arr)+30;c.push({score:home+20,home,icila:true,legs:[leg],last:{kind:"icila",text:`Icilà from Les Trucs to Chemin des Ribes, home ≈${hm(home)}. Book it yourself in the app.`},sum:`Line 11 at ${dep}, then Icilà (book it yourself), home ≈${hm(home)}`})}
     else{
@@ -187,8 +197,8 @@ function endHTML(key,end,usual,changed){
   const txt=end==="off"?"no school":`school ends <span class="t">${esc(end)}</span>`;
   return canWrite?`<button class="endbtn${changed?" changed":""}" data-edit="${key}" aria-label="Change when school ends">${txt}${changed?" · changed":""}</button>`:`<span>${txt}</span>`;
 }
-function icilaHTML(end,key){
-  const E=m(end);const b=L11.find(([dep,arr])=>m(dep)>=E+10&&m(arr)<=1080);
+function icilaHTML(end,key,d){
+  const E=m(end);const b=l11(d).find(([dep,arr])=>m(dep)>=E+10&&m(arr)<=1080);
   let inner;
   if(b){const t=hm(m(b[1])+3);
     inner=`<p>Take <b>line 11 at ${b[0]}</b> from the gare routière to Les Trucs (${b[1]}). In Icilà, enter:</p><dl class="ic"><dt>From</dt><dd>LES TRUCS</dd><dt>To</dt><dd>CHEMIN DES RIBES</dd><dt>Leave at</dt><dd>${t}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="LES TRUCS → CHEMIN DES RIBES, leave at ${t}">Copy</button></div><small>The app keeps your last search, so next time it's already filled in.</small>`;
@@ -211,7 +221,7 @@ function render(){
       const key=KEYS[i]+"-"+c,usual=ENDS[c][L][i],ov=overrides[key],end=okTime(ov)?ov:usual,changed=okTime(ov)&&ov!==usual;
       const p=route(end,i);
       const body=p.off?`<div class="leg"><span class="pill walk">Home</span><div class="legtxt">No school, no trip</div></div>`:p.legs.map(legHTML).join("")+lastHTML(p.last);
-      return`<article class="trip"><div class="who"><b>${NAMES[c]}</b>${endHTML(key,end,usual,changed)}</div>${body}${p.alts&&p.alts.length?`<details><summary>Other options</summary><ul>${p.alts.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></details>`:""}${p.off?"":icilaHTML(end,key)}</article>`}).join("")+`</div></section>`;
+      return`<article class="trip"><div class="who"><b>${NAMES[c]}</b>${endHTML(key,end,usual,changed)}</div>${body}${p.alts&&p.alts.length?`<details><summary>Other options</summary><ul>${p.alts.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></details>`:""}${p.off?"":icilaHTML(end,key,i)}</article>`}).join("")+`</div></section>`;
   }).join("");
   const f=document.querySelector("form.ed input");if(f)f.focus();
 }
