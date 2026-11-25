@@ -16,4 +16,4 @@ A weekly overview of how Sarah and Alara get home from the Lycée International 
 
 ## Updating
 
-Bus times are valid until 20 December 2026 (Envibus winter timetable). When Envibus publishes new times, update `SCHOOL` and `L11`, and add new school holidays to `holidays`.
+Bus times are for the 2026–2027 school year: the line 11 timetable is valid from 31 August 2026 to 4 July 2027, and the 26S and 27S sheets from September 2026. Envibus usually changes them once a year, for the new school year. When Envibus publishes new times, update `SCHOOL` and `L11`, and add new school holidays to `holidays`.
