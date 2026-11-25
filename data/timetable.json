@@ -1,8 +1,8 @@
 {
  "sources": {
-  "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/344e5a88-e993-4952-a8bf-503048020116",
+  "gtfs": "https://transport-data-gouv-fr-resource-history-prod.cellar-c2.services.clever-cloud.com/79342/79342.20261117.062130.733652.zip",
   "26S": "https://envibus-api.koezio.com/uploads/fiche/2026-09-07 ENVIBUS Fiche Horaires Ligne 26S.pdf",
-  "27S": "Envibus 27S timetable sheet, from 1 September 2026"
+  "27S": "https://envibus-api.koezio.com/uploads/fiche/2026-09-01 ENVIBUS Fiche Horaires Ligne 27S.pdf"
  },
  "gtfsValidUntil": "20261220",
  "line11": {
