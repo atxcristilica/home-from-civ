@@ -15,6 +15,12 @@ A weekly overview of how Sarah and Alara get home from the Lycée International 
 - `route()` picks the trip home for a finishing time: school bus and walk first, then line 11 + Icilà, then line 11 + car pick-up at Collège du Rouret, then a car pick-up at the CIV.
 - Week letters alternate A/B over school weeks, starting with week B on 30 November 2026; holidays are skipped.
 
+## Icilà marks and shared changes
+
+When a trip uses Icilà, its card shows **"Icilà needed, not booked yet"** with an **I booked it** button (the girl enters the pickup time she got). A booked trip shows **✓ Icilà booked HH:MM** with **Cancel in Icilà** and **I cancelled it**. If the school time is changed after booking, the card turns red and asks to check whether the ride is still needed. A **This week's Icilà** list at the top shows every Icilà trip of the week and its status.
+
+Changed school times and Icilà marks are shared through a Google Sheet (`apps-script/Code.gs`, deployed as a web app; its URL goes in `SYNC_URL` in `index.html`). Everyone enters the family code once per device. Without `SYNC_URL`, everything is saved on the device only.
+
 ## Automatic timetable updates
 
 Every Monday a GitHub Actions job (`.github/workflows/update-timetable.yml`) runs `scripts/update_timetable.py`, which:

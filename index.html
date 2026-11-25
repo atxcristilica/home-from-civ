@@ -68,6 +68,16 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--icila);outline-offs
 .part{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
 .part:first-of-type{border-top:0}
 .ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--mut);text-transform:none}
+.mk{margin-top:8px;padding:8px 10px;border-radius:10px;font-size:14px;border:1px solid}
+.mk.ok{border-color:var(--ok);color:var(--ok)}.mk.todo{border-color:var(--warn);color:var(--warn)}.mk.warn{border-color:var(--bad);color:var(--bad)}
+.mk .act a.need{color:inherit;border-color:currentColor}
+.strip{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+.strip h2{font-size:17px;margin:0 0 6px}.strip ul{margin:0;padding-left:0;list-style:none;display:grid;gap:4px}
+.st.ok{color:var(--ok)}.st.wait{color:var(--warn)}.st.bad{color:var(--bad)}
+.strip .st{font-size:13px;font-weight:700;border:1px solid currentColor;border-radius:999px;padding:1px 8px;margin-left:4px}
+.pinf{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pinf input{font:inherit;font-size:16px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;width:8em;background:var(--bg);color:var(--ink)}
+.pinf button{font:inherit;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--bg);cursor:pointer}
 details{margin-top:10px;font-size:14px;color:var(--mut)}
 summary{cursor:pointer;font-weight:600}
 details ul{margin:6px 0 0;padding-left:18px}
@@ -208,10 +218,10 @@ function morning(start,d){
   const alts=[sch,ic,dr,car].filter(x=>x&&x!==pick).map(x=>x.sum);
   return{...pick,alts,ic};
 }
-function amIcilaHTML(p){
-  const o=p.ic;
+function amIcilaHTML(p,key){
+  const o=p.ic&&p.ic.icila;
   if(!o)return`<details class="icd"><summary>Need an Icilà?</summary><p>No Icilà fits this morning: rides start at 7:00.</p></details>`;
-  return`<details class="icd"><summary>Need an Icilà?</summary><p>For <b>line 11 at ${o.dep}</b> from Collège du Rouret, enter in Icilà:</p><dl class="ic"><dt>From</dt><dd>CHEMIN DES RIBES</dd><dt>To</dt><dd>LES TRUCS</dd><dt>Arrive by</dt><dd>${hm(m(o.dep)-3)}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="CHEMIN DES RIBES → LES TRUCS, arrive by ${hm(m(o.dep)-3)}">Copy</button></div></details>`;
+  return`<details class="icd"><summary>Need an Icilà?</summary><p>For <b>line 11 at ${o.dep}</b> from Collège du Rouret, enter in Icilà:</p><dl class="ic"><dt>From</dt><dd>CHEMIN DES RIBES</dd><dt>To</dt><dd>LES TRUCS</dd><dt>Arrive by</dt><dd>${hm(m(o.dep)-3)}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="CHEMIN DES RIBES → LES TRUCS, arrive by ${hm(m(o.dep)-3)}">Copy</button>${canWrite?`<button type="button" data-booked="ic-${key}-am" data-t="${o.t}">I booked it</button>`:""}</div></details>`;
 }
 
 /* ---- dates and week letters ---- */
@@ -249,9 +259,32 @@ function icilaHTML(end,key,d){
   const E=m(end);const b=l11(d).find(([dep,arr])=>m(dep)>=E+10&&m(arr)<=1080);
   let inner;
   if(b){const t=hm(m(b[1])+3);
-    inner=`<p>Take <b>line 11 at ${b[0]}</b> from the gare routière to Les Trucs (${b[1]}). In Icilà, enter:</p><dl class="ic"><dt>From</dt><dd>LES TRUCS</dd><dt>To</dt><dd>CHEMIN DES RIBES</dd><dt>Leave at</dt><dd>${t}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="LES TRUCS → CHEMIN DES RIBES, leave at ${t}">Copy</button></div><small>The app keeps your last search, so next time it's already filled in.</small>`;
+    inner=`<p>Take <b>line 11 at ${b[0]}</b> from the gare routière to Les Trucs (${b[1]}). In Icilà, enter:</p><dl class="ic"><dt>From</dt><dd>LES TRUCS</dd><dt>To</dt><dd>CHEMIN DES RIBES</dd><dt>Leave at</dt><dd>${t}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="LES TRUCS → CHEMIN DES RIBES, leave at ${t}">Copy</button>${canWrite?`<button type="button" data-booked="ic-${key}-pm" data-t="${t}">I booked it</button>`:""}</div><small>The app keeps your last search, so next time it's already filled in.</small>`;
   }else inner=`<p>No Icilà fits after this time: rides must end by 19:00. Use the car pick-up.</p>`;
   return`<details class="icd"><summary>Need an Icilà?</summary>${inner}</details>`;
+}
+/* ---- Icilà marks: "booked@<icilà time>@<school time when booked>" or "cancelled" ---- */
+function mark(k){const v=overrides[k];if(typeof v!=="string")return null;if(v==="cancelled")return{st:"cancelled"};
+  const x=/^booked@(\d{2}:\d{2})@(off|\d{2}:\d{2})$/.exec(v);return x?{st:"booked",t:x[1],at:x[2]}:null}
+function pmIcila(end,d){if(end==="off")return null;const E=m(end);const b=l11(d).find(([dep,arr])=>m(dep)>=E+10&&m(arr)<=1080);return b?{dep:b[0],arr:b[1],t:hm(m(b[1])+3)}:null}
+const DSHORT=["Mon","Tue","Wed","Thu","Fri"];
+/* State of one Icilà trip: needs (plan uses it), suggested time, mark, and whether school time changed since booking. */
+function icState(k,needs,sugg,schoolTime){const b=mark(k);const booked=b&&b.st==="booked";
+  return{k,needs,sugg,b,booked,changed:booked&&b.at!==schoolTime,stale:booked&&!needs&&b.at!==schoolTime}}
+function badgeHTML(s){
+  if(!s)return"";
+  if(editing==="book:"+s.k&&canWrite)return`<form class="ed bk" data-book="${s.k}"><label>Icilà pickup time <input type="time" name="t" value="${esc(s.b&&s.b.t||s.sugg||"")}" step="60" required></label><div class="act"><button type="submit">Save</button><button type="button" data-cancel-ed>Cancel</button></div></form>`;
+  const cancelBtns=`<div class="act"><a class="need" href="https://reservation-icila.envibus.fr/login">Cancel in Icilà</a>${canWrite?`<button type="button" data-unbook="${s.k}">I cancelled it</button>`:""}</div>`;
+  if(s.booked&&s.changed)return`<div class="mk warn"><b>⚠ Icilà booked ${esc(s.b.t)}</b>, but school time changed since. Check you still need it; cancel it in the app if not.${cancelBtns}</div>`;
+  if(s.booked)return`<div class="mk ok"><b>✓ Icilà booked ${esc(s.b.t)}</b>${cancelBtns}</div>`;
+  if(s.needs)return`<div class="mk todo"><b>Icilà needed, not booked yet</b>${canWrite?`<div class="act"><button type="button" data-booked="${s.k}">I booked it</button></div>`:""}</div>`;
+  return"";
+}
+function stripHTML(rows){
+  if(!rows.length)return"";
+  return`<section class="strip"><h2>This week's Icilà</h2><ul>${rows.map(r=>{const s=r.s;
+    const st=s.booked?(s.changed?`<span class="st bad">check: school time changed</span>`:`<span class="st ok">booked ${esc(s.b.t)}</span>`):`<span class="st wait">to book</span>`;
+    return`<li><span class="t">${DSHORT[r.i]}</span> ${NAMES[r.c]} · ${r.part} · Icilà ≈${esc(s.booked?s.b.t:s.sugg)} ${st}</li>`}).join("")}</ul></section>`;
 }
 function render(){
   const mon=curMonday(),L=letterOf(mon);
@@ -262,7 +295,8 @@ function render(){
   if(!L){$("days").innerHTML=`<div class="hol">School holidays, no trips this week.</div>`;return}
   const kids=who==="both"?["sarah","alara"]:[who];
   const todayIdx=iso(mondayOf(new Date()))===iso(mon)?((new Date().getDay()+6)%7):-1;
-  $("days").innerHTML=DAYS.map((dn,i)=>{
+  const strip=[];
+  const html=DAYS.map((dn,i)=>{
     const date=addD(mon,i);
     return`<section class="day${i===todayIdx?" today":""}"><div class="dname"><b>${dn}</b><span>${fmt(date)}</span></div><div class="kids" style="--n:${kids.length}">`+
     kids.map(c=>{
@@ -271,18 +305,51 @@ function render(){
       const body=p.off?`<div class="leg"><span class="pill walk">Home</span><div class="legtxt">No school, no trip</div></div>`:p.legs.map(legHTML).join("")+lastHTML(p.last);
       const sk=key+"-start",su=STARTS[c][L][i],so=overrides[sk],start=okTime(so)?so:su,sch=okTime(so)&&so!==su;
       const q=morning(start,i);
+      const amS=q.off?null:icState("ic-"+key+"-am",q.kind==="icila",q.ic&&q.ic.icila?q.ic.icila.t:"",start);
+      const pmI=pmIcila(end,i);
+      const pmS=p.off?null:icState("ic-"+key+"-pm",!!(p.last&&p.last.kind==="icila"),pmI?pmI.t:"",end);
+      for(const [st,part] of [[amS,"to school"],[pmS,"home"]])if(st&&(st.needs||st.booked))strip.push({i,c,part,s:st});
       const amBody=q.off?`<div class="leg"><span class="pill walk">Home</span><div class="legtxt">No school</div></div>`:lastHTML(q.first)+q.legs.map(legHTML).join("");
       const alts=a=>a&&a.length?`<details><summary>Other options</summary><ul>${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`:"";
       return`<article class="trip"><div class="who"><b>${NAMES[c]}</b></div>
-        <div class="part"><div class="ph"><span>To school</span>${endHTML(sk,start,su,sch,"starts")}</div>${amBody}${alts(q.alts)}${q.off?"":amIcilaHTML(q)}</div>
-        <div class="part"><div class="ph"><span>Home</span>${endHTML(key,end,usual,changed)}</div>${body}${alts(p.alts)}${p.off?"":icilaHTML(end,key,i)}</div></article>`}).join("")+`</div></section>`;
+        <div class="part"><div class="ph"><span>To school</span>${endHTML(sk,start,su,sch,"starts")}</div>${amBody}${badgeHTML(amS)}${alts(q.alts)}${q.off?"":amIcilaHTML(q)}</div>
+        <div class="part"><div class="ph"><span>Home</span>${endHTML(key,end,usual,changed)}</div>${body}${badgeHTML(pmS)}${alts(p.alts)}${p.off?"":icilaHTML(end,key,i)}</div></article>`}).join("")+`</div></section>`;
   }).join("");
+  $("days").innerHTML=stripHTML(strip)+html;
   const f=document.querySelector("form.ed input");if(f)f.focus();
+}
+/* Shared storage. On GitHub Pages: a Google Sheet via Apps Script (SYNC_URL + family code).
+   On claude.ai: the page's database. Otherwise: this device only. */
+const SYNC_URL="";
+let mode="local",pin="",poll=null;
+try{pin=localStorage.getItem("familyPin")||""}catch(e){}
+function localGet(){try{return JSON.parse(localStorage.getItem("ends-"+iso(curMonday()))||"{}")}catch(e){return{}}}
+function localPut(o){try{localStorage.setItem("ends-"+iso(curMonday()),JSON.stringify(o))}catch(e){}}
+async function sheetGet(){
+  const r=await fetch(SYNC_URL+"?week="+iso(curMonday())+"&pin="+encodeURIComponent(pin));const j=await r.json();
+  if(!j.ok){if(j.error==="pin")askPin("That family code didn't work.");throw new Error(j.error)}
+  return j.items||{};
+}
+function askPin(msg){
+  const n=$("notice");n.textContent="";
+  const f=document.createElement("form");f.className="pinf";
+  f.innerHTML=`<span></span><label>Family code <input name="p" type="password" inputmode="numeric" autocomplete="off" required></label><button type="submit">OK</button>`;
+  f.querySelector("span").textContent=(msg?msg+" ":"")+"Enter the family code to share changes and Icilà marks.";
+  f.onsubmit=ev=>{ev.preventDefault();pin=f.elements.p.value.trim();try{localStorage.setItem("familyPin",pin)}catch(e){}n.textContent="";listen()};
+  n.appendChild(f);
 }
 function listen(){
   if(unsub){unsub();unsub=null}
+  if(poll){clearInterval(poll);poll=null}
   overrides={};editing=null;
-  if(!db){if(local){try{overrides=JSON.parse(localStorage.getItem("ends-"+iso(curMonday()))||"{}")}catch(e){overrides={}}}render();return}
+  if(mode==="local"){overrides=localGet();render();return}
+  if(mode==="sheet"){
+    render();
+    if(!pin){askPin("");return}
+    const load=()=>sheetGet().then(o=>{if(!editing){overrides=o;render()}if(!$("notice").querySelector("form"))$("notice").textContent=""}).catch(e=>{if(String(e.message)!=="pin")$("notice").textContent="Can't reach the shared changes right now; showing the usual times."});
+    load();poll=setInterval(()=>{if(document.visibilityState==="visible")load()},60000);
+    return;
+  }
   render();
   const timer=setTimeout(()=>{$("notice").textContent="Can't reach the saved changes yet; showing the usual times."},10000);
   unsub=db.doc("weeks/"+iso(curMonday())).onSnapshot(s=>{
@@ -291,19 +358,23 @@ function listen(){
   },()=>{clearTimeout(timer);$("notice").textContent="Saved changes unavailable right now; showing the usual times."});
 }
 async function saveEnd(key,val){
-  if(!db){if(!local)return;const k="ends-"+iso(curMonday());
-    try{const o=JSON.parse(localStorage.getItem(k)||"{}");if(val===null)delete o[key];else o[key]=val;localStorage.setItem(k,JSON.stringify(o));overrides=o}catch(e){$("notice").textContent="This browser can't save changes."}
-    editing=null;render();return}
+  const by=who==="both"?"":NAMES[who];
+  if(mode==="local"){const o=localGet();if(val===null)delete o[key];else o[key]=val;localPut(o);overrides=o;editing=null;render();return}
+  if(mode==="sheet"){
+    const prev=overrides[key];overrides={...overrides};if(val===null)delete overrides[key];else overrides[key]=val;editing=null;render();
+    try{const r=await fetch(SYNC_URL,{method:"POST",body:JSON.stringify({pin,week:iso(curMonday()),key,value:val,by})});const j=await r.json();
+      if(!j.ok)throw new Error(j.error);overrides=j.items||overrides;render()}
+    catch(e){overrides={...overrides};if(prev===undefined)delete overrides[key];else overrides[key]=prev;render();$("notice").textContent=String(e.message)==="pin"?"Family code not accepted.":"Couldn't save that change. Try again."}
+    return}
   const ref=db.doc("weeks/"+iso(curMonday()));
   try{
     const s=await ref.get();
     const patch={ends:{[key]:val===null?null:val}};
-    if(s.exists){
-      await ref.update(patch);
-    }else if(val!==null)await ref.set({ends:{[key]:val}});
+    if(s.exists)await ref.update(patch);else if(val!==null)await ref.set({ends:{[key]:val}});
     editing=null;render();
   }catch(e){$("notice").textContent="Couldn't save that change. Try again.";if(e&&e.code==="invalid_argument"){canWrite=false;editing=null;render()}}
 }
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&mode==="sheet"&&pin)listen()});
 $("bThis").onclick=()=>{weekOffset=0;listen()};
 $("bNext").onclick=()=>{weekOffset=1;listen()};
 document.querySelectorAll("[data-who]").forEach(b=>b.onclick=()=>{who=b.dataset.who;try{localStorage.setItem("who",who)}catch(e){}render()});
@@ -313,10 +384,19 @@ $("days").addEventListener("click",ev=>{
   if(t.closest("[data-cancel-ed]")){editing=null;render();return}
   const o=t.closest("[data-off]");if(o){saveEnd(o.dataset.off,"off");return}
   const r=t.closest("[data-reset]");if(r){saveEnd(r.dataset.reset,null);return}
+  const bk=t.closest("[data-booked]");if(bk){editing="book:"+bk.dataset.booked;render();return}
+  const ub=t.closest("[data-unbook]");if(ub){saveEnd(ub.dataset.unbook,"cancelled");return}
   const cp=t.closest("[data-copy]");if(cp){navigator.clipboard.writeText(cp.dataset.copy).then(()=>{cp.textContent="Copied"},()=>{cp.textContent="Copy failed"});return}
 });
 $("days").addEventListener("submit",ev=>{
-  ev.preventDefault();const f=ev.target.closest("form.ed");if(!f)return;
+  ev.preventDefault();
+  const bf=ev.target.closest("form.bk");
+  if(bf){const v=bf.elements.t.value,k=bf.dataset.book;if(!/^\d{2}:\d{2}$/.test(v))return;
+    const kk=k.replace(/^ic-/,"").replace(/-(am|pm)$/,""),isAm=k.endsWith("-am");
+    const c=kk.split("-")[1],i=KEYS.indexOf(kk.split("-")[0]),L=letterOf(curMonday());
+    const sk=isAm?kk+"-start":kk,usual=isAm?STARTS[c][L][i]:ENDS[c][L][i],ov=overrides[sk],cur=okTime(ov)?ov:usual;
+    saveEnd(k,`booked@${v}@${cur}`);return}
+  const f=ev.target.closest("form.ed");if(!f)return;
   const v=f.elements.t.value;if(okTime(v))saveEnd(f.dataset.key,v);
 });
 render();
@@ -326,14 +406,14 @@ render();
     db=await claude.use("db");
     const user=await claude.use("user");
     if(db){
-      canWrite=true;
+      canWrite=true;mode="db";
       if(user&&user.can){try{const c=await user.can("data.write");if(c===false)canWrite=false}catch(e){}}
       try{const c=await db.doc("config/main").get();if(c.exists){const d=c.data();if(d.anchorMonday&&/^\d{4}-\d{2}-\d{2}$/.test(d.anchorMonday))cfg={...cfg,...d}}}catch(e){}
       listen();
     }else goLocal();
   }catch(e){goLocal()}
 })();
-function goLocal(){local=true;canWrite=true;$("notice").textContent="Changes to school times are saved on this device only.";listen()}
+function goLocal(){canWrite=true;if(SYNC_URL){mode="sheet";listen();return}mode="local";$("notice").textContent="Changes are saved on this device only.";listen()}
 }
 </script>
 </body>
