@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home from CIV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a practical bus-stop board for two teenagers: quick, calm, no clutter.
+   IDEA: the departure board at a stop, one row per day, a ticket stub per girl.
+   PICTURE: the week itself, each trip drawn as line pills and a time strip.
+   COLOUR and TYPE: white board, deep ink, Envibus-like line colours, Icilà orange; Overpass.
+   LAYOUT: title + week switch, then the five days, then how it works. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f4f5f1,#0f1a1f);--card:light-dark(#ffffff,#162429);--ink:light-dark(#11232b,#e8eef0);
+--mut:light-dark(#5b6b71,#9fb0b6);--line:light-dark(#dde2df,#26373d);
+--icila:#e8590c;--ok:light-dark(#1e7a46,#5fd08f);--warn:light-dark(#b25d00,#ffb357);--bad:light-dark(#b42318,#ff8a80)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Overpass,system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,4vw,44px) max(4vw,14px)}
+.wrap{max-width:1180px;margin:0 auto}
+header .wrap{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:end;justify-content:space-between}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.05;margin:0;font-weight:800;text-wrap:balance}
+.sub{color:var(--mut);margin:6px 0 0}
+.wk{font-weight:800;color:var(--ink)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;background:var(--card);padding:3px}
+.seg button{font:inherit;font-weight:600;border:0;background:none;color:var(--mut);padding:9px 16px;border-radius:999px;min-height:40px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+button:focus-visible,a:focus-visible{outline:3px solid var(--icila);outline-offset:2px}
+.notice{margin:14px 0 0;padding:10px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--mut);font-size:14px}
+.notice:empty{display:none}
+.days{display:grid;gap:12px}
+.day{display:grid;grid-template-columns:120px minmax(0,1fr);gap:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.day.today{outline:3px solid var(--ink)}
+.dname{padding:16px;border-right:1px solid var(--line)}
+.dname b{display:block;font-size:20px;line-height:1.1}
+.dname span{color:var(--mut);font-size:14px}
+.kids{display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr))}
+.trip{padding:14px 16px;border-left:1px solid var(--line)}
+.trip:first-child{border-left:0}
+.who{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:14px;color:var(--mut)}
+.who b{color:var(--ink);font-size:16px}
+.leg{display:flex;gap:10px;align-items:flex-start;margin-top:10px}
+.pill{flex:none;min-width:44px;text-align:center;font-weight:800;font-size:14px;border-radius:6px;padding:3px 7px;color:#fff;background:#808080}
+.pill.l26S{background:#d6127e}.pill.l27S{background:#007c89}.pill.l26{background:#0bdbd6;color:#062a2a}.pill.l11{background:#6b6b6b}
+.pill.walk{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.pill.icila{background:var(--icila)}.pill.car{background:var(--bad)}
+.t{font-variant-numeric:tabular-nums;font-weight:800;white-space:nowrap}
+.legtxt{font-size:15px;line-height:1.35}
+.legtxt small{display:block;color:var(--mut);font-size:13px}
+.st{display:inline-block;margin-top:6px;font-size:13px;font-weight:700;border-radius:999px;padding:2px 10px;border:1px solid currentColor}
+.st.ok{color:var(--ok)}.st.wait{color:var(--warn)}.st.bad{color:var(--bad)}.st.none{color:var(--mut)}
+.act{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.act a.need{font-size:13px;font-weight:600;color:var(--icila);text-decoration:none;border:1px solid var(--icila);border-radius:8px;padding:7px 10px;display:inline-block}
+.act button{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:none;color:var(--ink);border-radius:8px;padding:7px 10px;min-height:36px;cursor:pointer}
+.endbtn{font:inherit;font-size:14px;color:var(--mut);background:none;border:1px dashed var(--line);border-radius:8px;padding:4px 8px;min-height:32px;cursor:pointer}
+.endbtn.changed{color:var(--icila);border-color:var(--icila);border-style:solid}
+.ed{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:14px}
+.ed input{font:inherit;font-size:16px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.who{flex-wrap:wrap}
+.icd summary{color:var(--icila)}
+.icd p{margin:6px 0}
+.ic{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:4px 0 6px;color:var(--ink)}
+.ic dt{color:var(--mut)}.ic dd{margin:0;font-weight:700}
+details{margin-top:10px;font-size:14px;color:var(--mut)}
+summary{cursor:pointer;font-weight:600}
+details ul{margin:6px 0 0;padding-left:18px}
+.hol{padding:28px;text-align:center;color:var(--mut);background:var(--card);border-radius:14px;border:1px solid var(--line)}
+.how{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;color:var(--mut);font-size:15px}
+.how h2{font-size:17px;color:var(--ink);margin:0 0 4px}
+.how a{color:var(--ink)}
+@media(max-width:640px){.day{grid-template-columns:1fr}.dname{border-right:0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline;padding:10px 14px}.kids{grid-template-columns:1fr}.trip{border-left:0;border-top:1px solid var(--line)}.trip:first-child{border-top:0}}
+@media(prefers-reduced-motion:no-preference){.day{transition:opacity .2s}}
+</style>
+</head>
+<body>
+<header class="band"><div class="wrap">
+  <div>
+    <h1>Home from the CIV</h1>
+    <p class="sub"><span class="wk" id="wkLabel">This week</span> · <span id="wkDates"></span></p>
+  </div>
+  <div class="ctl">
+    <div class="seg" role="group" aria-label="Week">
+      <button id="bThis" aria-pressed="true">This week</button>
+      <button id="bNext" aria-pressed="false">Next week</button>
+    </div>
+    <div class="seg" role="group" aria-label="Who">
+      <button data-who="both" aria-pressed="true">Both</button>
+      <button data-who="sarah" aria-pressed="false">Sarah</button>
+      <button data-who="alara" aria-pressed="false">Alara</button>
+    </div>
+  </div>
+</div>
+<div class="wrap"><p class="notice" id="notice" aria-live="polite"></p></div>
+</header>
+
+<main class="band" style="padding-top:0"><div class="wrap">
+  <div class="days" id="days"></div>
+</div></main>
+
+<section class="band" style="padding-top:8px"><div class="wrap how">
+  <div><h2>Plans changed?</h2>Tap <b>Need an Icilà?</b> to book a shuttle in your own Icilà account. Use stop <b>Chemin des Ribes</b> for home. Bookings open on Mondays at 9:00 for the next week. Icilà phone: 04 92 19 76 30.</div>
+  <div><h2>18:00 finishes</h2>Take line 11 at 18:15 from the gare routière to <b>Collège du Rouret</b> (18:40). The car picks you up there. Icilà has no rides that late.</div>
+  <div><h2>Good to know</h2>The gare routière is a 5-minute walk from Place Bermond. The 26S and 27S are school lines and don't run in the holidays. Bus times are valid until 20 December 2026.</div>
+</div></section>
+
+<script>
+{
+const DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday"];
+const KEYS=["mon","tue","wed","thu","fri"];
+const NAMES={sarah:"Sarah",alara:"Alara"};
+/* Usual finishing times from the timetables (week A / week B). */
+const ENDS={
+  sarah:{A:["17:00","18:00","11:00","18:00","18:00"],B:["17:00","18:00","13:00","18:00","18:00"]},
+  alara:{A:["18:00","18:00","12:00","17:00","15:00"],B:["18:00","18:00","12:00","17:00","15:00"]}
+};
+/* Ways home. days: 0=Mon..4=Fri. board: minutes needed after class ends. */
+const GR="Gare routière", PB="Place Bermond (CIV)";
+const SCHOOL=[
+  {line:"26S",from:PB,dep:"12:15",to:"Cistes",arr:"12:49",days:[2],board:5},
+  {line:"27S",from:GR,dep:"12:15",to:"Cistes",arr:"≈12:52",days:[2],board:10},
+  {line:"27S",from:GR,dep:"13:20",to:"Cistes",arr:"≈13:55",days:[2],board:10},
+  {line:"27S",from:GR,dep:"16:15",to:"Cistes",arr:"≈16:50",days:[0,1,3,4],board:10},
+  {line:"26S",from:PB,dep:"17:15",to:"Cistes",arr:"17:58",days:[0,1,3,4],board:5},
+  {line:"27S",from:GR,dep:"17:20",to:"Cistes",arr:"≈17:55",days:[0,1,3,4],board:10}
+];
+const L11=[["07:10","07:35"],["07:50","08:16"],["08:50","09:16"],["09:35","10:01"],["10:40","11:06"],["11:20","11:45"],["12:15","12:40"],["12:50","13:15"],["13:55","14:20"],["14:35","15:00"],["15:40","16:05"],["16:20","16:46"],["17:25","17:50"],["18:15","18:40"],["19:10","19:35"],["20:00","20:25"]];
+const m=t=>{const x=String(t).replace("≈","").split(":");return +x[0]*60+ +x[1]};
+const hm=n=>String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");
+
+/* Work out the trip home for a finishing time. */
+function route(end,d){
+  if(end==="off")return{off:true,alts:[]};
+  const E=m(end),c=[];
+  for(const s of SCHOOL){if(s.days.includes(d)&&m(s.dep)>=E+s.board){const home=m(s.arr)+5;c.push({score:home+(s.from===GR?3:0),home,school:true,legs:[s],last:{kind:"walk",text:"Walk home from Cistes"},sum:`${s.line} at ${s.dep} from ${s.from==PB?"Place Bermond":"the gare routière"}, home ≈${hm(home)}`})}}
+  for(const [dep,arr] of L11){if(m(dep)>=E+10){
+    const leg={line:"11",from:GR,dep,to:"Les Trucs",arr};
+    if(m(arr)<=1080){const home=m(arr)+30;c.push({score:home+20,home,icila:true,legs:[leg],last:{kind:"icila",text:`Icilà from Les Trucs to Chemin des Ribes, home ≈${hm(home)}. Book it yourself in the app.`},sum:`Line 11 at ${dep}, then Icilà (book it yourself), home ≈${hm(home)}`})}
+    else{
+      const cr={...leg,to:"Collège du Rouret"};
+      c.push({score:m(arr)+15,home:m(arr)+10,pickup:true,legs:[cr],last:{kind:"car",text:`Car pick-up at Collège du Rouret at ${arr}`},sum:`Line 11 at ${dep}, then car pick-up at Collège du Rouret at ${arr}`});
+      c.push({score:9999,home:m(arr)+30,walkfar:true,legs:[leg],last:{kind:"walk",text:"Walk home from Les Trucs (about 30 min)"},sum:`Line 11 at ${dep}, then a 30-min walk from Les Trucs`});
+    }
+    break}}
+  const car={car:true,home:E+25,legs:[],last:{kind:"car",text:`Car pick-up at Place Bermond at ${end}`},sum:`Car pick-up at Place Bermond at ${end}`};
+  const real=c.filter(x=>!x.walkfar&&!x.pickup).sort((a,b)=>a.score-b.score);
+  const pick=c.find(x=>x.pickup);
+  let best=real[0]||null;
+  /* Prefer a school line (no booking needed) if it's within 45 min of the quickest option. */
+  const sch=real.filter(x=>x.school).sort((a,b)=>a.home-b.home)[0];
+  if(best&&sch&&!best.school&&sch.home<=best.home+45)best=sch;
+  if(!best||best.home>E+150)best=pick&&m(pick.legs[0].dep)<=E+45?pick:car;
+  const alts=[...real,pick,...c.filter(x=>x.walkfar),car].filter(x=>x&&x!==best).slice(0,3).map(x=>x.sum);
+  return{...best,alts};
+}
+
+/* ---- dates and week letters ---- */
+let cfg={anchorMonday:"2026-11-30",anchorLetter:"B",holidays:[["2026-12-19","2027-01-03"]]};
+const iso=d=>d.toISOString().slice(0,10);
+const parse=s=>{const[y,mo,dd]=s.split("-").map(Number);return new Date(Date.UTC(y,mo-1,dd))};
+const addD=(d,n)=>new Date(d.getTime()+n*864e5);
+function mondayOf(d){const u=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const wd=(u.getUTCDay()+6)%7;return addD(u,-wd)}
+function isHoliday(mon){const fri=iso(addD(mon,4));return(cfg.holidays||[]).some(([a,b])=>iso(mon)>=a&&fri<=b)}
+function letterOf(mon){
+  if(isHoliday(mon))return null;
+  let a=parse(cfg.anchorMonday),n=0,step=mon>=a?7:-7,cur=a;
+  while(iso(cur)!==iso(mon)){cur=addD(cur,step);if(!isHoliday(cur))n+=(step>0?1:-1);if(Math.abs(n)>80)break}
+  const L=cfg.anchorLetter==="A"?0:1;return(((L+n)%2)+2)%2===0?"A":"B";
+}
+const fmt=d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});
+
+/* ---- state ---- */
+let weekOffset=0,who="both",overrides={},db=null,canWrite=false,unsub=null,editing=null,local=false;
+try{who=localStorage.getItem("who")||"both"}catch(e){}
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $=id=>document.getElementById(id);
+function curMonday(){let mo=mondayOf(new Date());const wd=new Date().getDay();if(wd===6||wd===0)mo=addD(mo,7);return addD(mo,7*weekOffset)}
+const okTime=v=>typeof v==="string"&&(/^([01]\d|2[0-3]):[0-5]\d$/.test(v)||v==="off");
+
+function legHTML(l){return`<div class="leg"><span class="pill l${esc(l.line)}">${esc(l.line)}</span><div class="legtxt"><span class="t">${esc(l.dep)}</span> ${esc(l.from)} → <span class="t">${esc(l.arr)}</span> ${esc(l.to)}</div></div>`}
+function lastHTML(x){const cls=x.kind==="car"?"car":x.kind==="icila"?"icila":"walk";const lab=x.kind==="car"?"Car":x.kind==="icila"?"Icilà":"Walk";return`<div class="leg"><span class="pill ${cls}">${lab}</span><div class="legtxt">${esc(x.text)}</div></div>`}
+function endHTML(key,end,usual,changed){
+  if(editing===key&&canWrite)return`<form class="ed" data-key="${key}"><label>School ends <input type="time" name="t" value="${end==="off"?usual:esc(end)}" step="300" required></label><div class="act"><button type="submit">Save</button><button type="button" data-off="${key}">No school</button>${changed?`<button type="button" data-reset="${key}">Usual (${usual})</button>`:""}<button type="button" data-cancel-ed>Cancel</button></div></form>`;
+  const txt=end==="off"?"no school":`school ends <span class="t">${esc(end)}</span>`;
+  return canWrite?`<button class="endbtn${changed?" changed":""}" data-edit="${key}" aria-label="Change when school ends">${txt}${changed?" · changed":""}</button>`:`<span>${txt}</span>`;
+}
+function icilaHTML(end,key){
+  const E=m(end);const b=L11.find(([dep,arr])=>m(dep)>=E+10&&m(arr)<=1080);
+  let inner;
+  if(b){const t=hm(m(b[1])+3);
+    inner=`<p>Take <b>line 11 at ${b[0]}</b> from the gare routière to Les Trucs (${b[1]}). In Icilà, enter:</p><dl class="ic"><dt>From</dt><dd>LES TRUCS</dd><dt>To</dt><dd>CHEMIN DES RIBES</dd><dt>Leave at</dt><dd>${t}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="LES TRUCS → CHEMIN DES RIBES, leave at ${t}">Copy</button></div><small>The app keeps your last search, so next time it's already filled in.</small>`;
+  }else inner=`<p>No Icilà fits after this time: rides must end by 19:00. Use the car pick-up.</p>`;
+  return`<details class="icd"><summary>Need an Icilà?</summary>${inner}</details>`;
+}
+function render(){
+  const mon=curMonday(),L=letterOf(mon);
+  $("wkLabel").textContent=(weekOffset===0?"This week":"Next week")+(L?" · Week "+L:"");
+  $("wkDates").textContent=fmt(mon)+" – "+fmt(addD(mon,4));
+  $("bThis").setAttribute("aria-pressed",weekOffset===0);$("bNext").setAttribute("aria-pressed",weekOffset===1);
+  document.querySelectorAll("[data-who]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.who===who));
+  if(!L){$("days").innerHTML=`<div class="hol">School holidays, no trips this week.</div>`;return}
+  const kids=who==="both"?["sarah","alara"]:[who];
+  const todayIdx=iso(mondayOf(new Date()))===iso(mon)?((new Date().getDay()+6)%7):-1;
+  $("days").innerHTML=DAYS.map((dn,i)=>{
+    const date=addD(mon,i);
+    return`<section class="day${i===todayIdx?" today":""}"><div class="dname"><b>${dn}</b><span>${fmt(date)}</span></div><div class="kids" style="--n:${kids.length}">`+
+    kids.map(c=>{
+      const key=KEYS[i]+"-"+c,usual=ENDS[c][L][i],ov=overrides[key],end=okTime(ov)?ov:usual,changed=okTime(ov)&&ov!==usual;
+      const p=route(end,i);
+      const body=p.off?`<div class="leg"><span class="pill walk">Home</span><div class="legtxt">No school, no trip</div></div>`:p.legs.map(legHTML).join("")+lastHTML(p.last);
+      return`<article class="trip"><div class="who"><b>${NAMES[c]}</b>${endHTML(key,end,usual,changed)}</div>${body}${p.alts&&p.alts.length?`<details><summary>Other options</summary><ul>${p.alts.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></details>`:""}${p.off?"":icilaHTML(end,key)}</article>`}).join("")+`</div></section>`;
+  }).join("");
+  const f=document.querySelector("form.ed input");if(f)f.focus();
+}
+function listen(){
+  if(unsub){unsub();unsub=null}
+  overrides={};editing=null;
+  if(!db){if(local){try{overrides=JSON.parse(localStorage.getItem("ends-"+iso(curMonday()))||"{}")}catch(e){overrides={}}}render();return}
+  render();
+  const timer=setTimeout(()=>{$("notice").textContent="Can't reach the saved changes yet; showing the usual times."},10000);
+  unsub=db.doc("weeks/"+iso(curMonday())).onSnapshot(s=>{
+    if(!s.metadata.fromCache){clearTimeout(timer);$("notice").textContent=""}
+    const d=s.exists?s.data():null;overrides=(d&&d.ends&&typeof d.ends==="object")?d.ends:{};render();
+  },()=>{clearTimeout(timer);$("notice").textContent="Saved changes unavailable right now; showing the usual times."});
+}
+async function saveEnd(key,val){
+  if(!db){if(!local)return;const k="ends-"+iso(curMonday());
+    try{const o=JSON.parse(localStorage.getItem(k)||"{}");if(val===null)delete o[key];else o[key]=val;localStorage.setItem(k,JSON.stringify(o));overrides=o}catch(e){$("notice").textContent="This browser can't save changes."}
+    editing=null;render();return}
+  const ref=db.doc("weeks/"+iso(curMonday()));
+  try{
+    const s=await ref.get();
+    const patch={ends:{[key]:val===null?null:val}};
+    if(s.exists){
+      await ref.update(patch);
+    }else if(val!==null)await ref.set({ends:{[key]:val}});
+    editing=null;render();
+  }catch(e){$("notice").textContent="Couldn't save that change. Try again.";if(e&&e.code==="invalid_argument"){canWrite=false;editing=null;render()}}
+}
+$("bThis").onclick=()=>{weekOffset=0;listen()};
+$("bNext").onclick=()=>{weekOffset=1;listen()};
+document.querySelectorAll("[data-who]").forEach(b=>b.onclick=()=>{who=b.dataset.who;try{localStorage.setItem("who",who)}catch(e){}render()});
+$("days").addEventListener("click",ev=>{
+  const t=ev.target;
+  const e=t.closest("[data-edit]");if(e){editing=e.dataset.edit;render();return}
+  if(t.closest("[data-cancel-ed]")){editing=null;render();return}
+  const o=t.closest("[data-off]");if(o){saveEnd(o.dataset.off,"off");return}
+  const r=t.closest("[data-reset]");if(r){saveEnd(r.dataset.reset,null);return}
+  const cp=t.closest("[data-copy]");if(cp){navigator.clipboard.writeText(cp.dataset.copy).then(()=>{cp.textContent="Copied"},()=>{cp.textContent="Copy failed"});return}
+});
+$("days").addEventListener("submit",ev=>{
+  ev.preventDefault();const f=ev.target.closest("form.ed");if(!f)return;
+  const v=f.elements.t.value;if(okTime(v))saveEnd(f.dataset.key,v);
+});
+render();
+(async()=>{
+  try{
+    if(typeof claude==="undefined"||!claude.use)return goLocal();
+    db=await claude.use("db");
+    const user=await claude.use("user");
+    if(db){
+      canWrite=true;
+      if(user&&user.can){try{const c=await user.can("data.write");if(c===false)canWrite=false}catch(e){}}
+      try{const c=await db.doc("config/main").get();if(c.exists){const d=c.data();if(d.anchorMonday&&/^\d{4}-\d{2}-\d{2}$/.test(d.anchorMonday))cfg={...cfg,...d}}}catch(e){}
+      listen();
+    }else goLocal();
+  }catch(e){goLocal()}
+})();
+function goLocal(){local=true;canWrite=true;$("notice").textContent="Changes to finishing times are saved on this device only.";listen()}
+}
+</script>
+</body>
+</html>
