@@ -65,6 +65,9 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--icila);outline-offs
 .icd p{margin:6px 0}
 .ic{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:4px 0 6px;color:var(--ink)}
 .ic dt{color:var(--mut)}.ic dd{margin:0;font-weight:700}
+.part{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
+.part:first-of-type{border-top:0}
+.ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--mut);text-transform:none}
 details{margin-top:10px;font-size:14px;color:var(--mut)}
 summary{cursor:pointer;font-weight:600}
 details ul{margin:6px 0 0;padding-left:18px}
@@ -136,7 +139,10 @@ fetch("data/timetable.json",{cache:"no-cache"}).then(r=>r.ok?r.json():null).then
   const ok=t=>typeof t==="string"&&/^≈?\d{2}:\d{2}$/.test(t);
   const by={};for(const k of Object.keys(j.line11)){const rows=(j.line11[k]||[]).filter(r=>Array.isArray(r)&&ok(r[0])&&ok(r[1])).map(r=>[r[0],r[1]]);if(rows.length)by[k]=rows}
   const sch=j.school.filter(x=>x&&ok(x.dep)&&ok(x.arr)&&Array.isArray(x.days)&&typeof x.line==="string").map(x=>({line:String(x.line).slice(0,4),from:x.from==="Place Bermond (CIV)"?"Place Bermond (CIV)":"Gare routière",dep:x.dep,to:"Cistes",arr:x.arr,days:x.days.filter(n=>Number.isInteger(n)&&n>=0&&n<5),board:x.board===5?5:10}));
-  if(Object.keys(by).length)L11BY=by;if(sch.length)SCHOOL=sch;TT=j;render();
+  if(Object.keys(by).length)L11BY=by;if(sch.length)SCHOOL=sch;
+  if(j.line11Morning){const ab={};for(const k of Object.keys(j.line11Morning)){const rows=(j.line11Morning[k]||[]).filter(r=>Array.isArray(r)&&ok(r[0])&&ok(r[1])).map(r=>[r[0],r[1]]);if(rows.length)ab[k]=rows}if(Object.keys(ab).length)L11AMBY=ab}
+  if(Array.isArray(j.schoolMorning)){const sa=j.schoolMorning.filter(x=>x&&ok(x.dep)&&ok(x.arr)&&Array.isArray(x.days)).map(x=>({line:String(x.line).slice(0,4),from:"Moulins",dep:x.dep,to:x.to==="Place Bermond (CIV)"?"Place Bermond (CIV)":"Gare routière",arr:x.arr,walk:x.walk===0?0:5,days:x.days.filter(n=>Number.isInteger(n)&&n>=0&&n<5)}));if(sa.length)SCHOOLAM=sa}
+  TT=j;render();
 }).catch(()=>{});
 const m=t=>{const x=String(t).replace("≈","").split(":");return +x[0]*60+ +x[1]};
 const hm=n=>String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");
@@ -167,6 +173,47 @@ function route(end,d){
   return{...best,alts};
 }
 
+/* ---- mornings: home -> CIV ---- */
+const STARTS={
+  sarah:{A:["08:00","09:00","08:00","08:00","10:00"],B:["08:00","08:00","08:00","08:00","08:00"]},
+  alara:{A:["08:00","08:00","08:00","10:00","08:00"],B:["08:00","08:00","08:00","10:00","08:00"]}
+};
+let SCHOOLAM=[
+  {line:"27S",from:"Moulins",dep:"≈06:58",to:"Gare routière",arr:"07:40",walk:5,days:[0,1,2,3,4]},
+  {line:"26S",from:"Moulins",dep:"07:00",to:"Place Bermond (CIV)",arr:"07:40",walk:0,days:[0,1,2,3,4]},
+  {line:"27S",from:"Moulins",dep:"≈08:08",to:"Gare routière",arr:"08:43",walk:5,days:[0,1,2,3,4]}
+];
+let L11AM=[["06:53","07:19"],["07:13","07:40"],["08:14","08:40"],["08:54","09:20"],["09:59","10:25"],["10:39","11:04"],["11:49","12:14"],["12:29","12:55"],["13:19","13:46"],["13:54","14:22"],["14:59","15:27"],["15:44","16:10"],["16:44","17:10"],["17:29","17:56"],["18:34","18:59"]];
+let L11AMBY={};
+const l11am=d=>L11AMBY[d]||L11AM;
+/* Find the way to school for a start time. Leave home as late as possible; prefer no booking. */
+function morning(start,d){
+  if(start==="off")return{off:true,alts:[]};
+  const S=m(start),need=S-5,c=[];
+  for(const s of SCHOOLAM){if(!s.days.includes(d))continue;const at=m(s.arr)+s.walk;if(at>need)continue;
+    const leave=m(s.dep)-10;c.push({kind:"school",leave,at,legs:[{line:s.line,from:s.from,dep:s.dep,to:s.to,arr:s.arr}],first:{kind:"walk",text:`Leave home at ${hm(leave)}, walk to Moulins (≈10 min)`},sum:`Walk to Moulins at ${hm(leave)}, ${s.line} at ${s.dep.replace("≈","")}, at school ≈${hm(at)}`})}
+  for(const [dep,arr] of l11am(d)){const at=m(arr)+5;if(at>need)continue;
+    const leg={line:"11",from:"Collège du Rouret",dep,to:"Gare routière",arr};
+    const pick=m(dep)-25;
+    if(pick>=420&&pick<=1080)c.push({kind:"icila",leave:pick,at,legs:[leg],first:{kind:"icila",text:`Icilà from Chemin des Ribes at ≈${hm(pick)} to Les Trucs. Book it yourself.`},sum:`Icilà ≈${hm(pick)} to Les Trucs, line 11 at ${dep}, at school ≈${hm(at)}`,icila:{t:hm(pick),dep}});
+    c.push({kind:"drop",leave:m(dep)-10,at,legs:[leg],first:{kind:"car",text:`Car drop at Collège du Rouret at ${hm(m(dep)-3)}`},sum:`Car drop at Collège du Rouret, line 11 at ${dep}, at school ≈${hm(at)}`})}
+  const car={kind:"car",leave:S-40,at:S-10,legs:[],first:{kind:"car",text:`Car to Place Bermond, leave home at ${hm(S-40)}`},sum:`Car all the way, leave home at ${hm(S-40)}`};
+  const best=k=>c.filter(x=>x.kind===k).sort((a,b)=>b.leave-a.leave)[0];
+  const sch=best("school"),ic=best("icila"),dr=best("drop");
+  const latest=Math.max(...[sch,ic,dr].filter(Boolean).map(x=>x.leave),-1);
+  let pick=null;
+  if(sch&&sch.leave>=latest-45)pick=sch;
+  else if(ic&&ic.leave>=latest-30)pick=ic;
+  else pick=dr||ic||sch||car;
+  const alts=[sch,ic,dr,car].filter(x=>x&&x!==pick).map(x=>x.sum);
+  return{...pick,alts,ic};
+}
+function amIcilaHTML(p){
+  const o=p.ic;
+  if(!o)return`<details class="icd"><summary>Need an Icilà?</summary><p>No Icilà fits this morning: rides start at 7:00.</p></details>`;
+  return`<details class="icd"><summary>Need an Icilà?</summary><p>For <b>line 11 at ${o.dep}</b> from Collège du Rouret, enter in Icilà:</p><dl class="ic"><dt>From</dt><dd>CHEMIN DES RIBES</dd><dt>To</dt><dd>LES TRUCS</dd><dt>Arrive by</dt><dd>${hm(m(o.dep)-3)}</dd></dl><div class="act"><a class="need" href="https://reservation-icila.envibus.fr/search">Open Icilà</a><button type="button" data-copy="CHEMIN DES RIBES → LES TRUCS, arrive by ${hm(m(o.dep)-3)}">Copy</button></div></details>`;
+}
+
 /* ---- dates and week letters ---- */
 let cfg={anchorMonday:"2026-11-30",anchorLetter:"B",holidays:[["2026-12-19","2027-01-03"]]};
 const iso=d=>d.toISOString().slice(0,10);
@@ -192,10 +239,11 @@ const okTime=v=>typeof v==="string"&&(/^([01]\d|2[0-3]):[0-5]\d$/.test(v)||v==="
 
 function legHTML(l){return`<div class="leg"><span class="pill l${esc(l.line)}">${esc(l.line)}</span><div class="legtxt"><span class="t">${esc(l.dep)}</span> ${esc(l.from)} → <span class="t">${esc(l.arr)}</span> ${esc(l.to)}</div></div>`}
 function lastHTML(x){const cls=x.kind==="car"?"car":x.kind==="icila"?"icila":"walk";const lab=x.kind==="car"?"Car":x.kind==="icila"?"Icilà":"Walk";return`<div class="leg"><span class="pill ${cls}">${lab}</span><div class="legtxt">${esc(x.text)}</div></div>`}
-function endHTML(key,end,usual,changed){
-  if(editing===key&&canWrite)return`<form class="ed" data-key="${key}"><label>School ends <input type="time" name="t" value="${end==="off"?usual:esc(end)}" step="300" required></label><div class="act"><button type="submit">Save</button><button type="button" data-off="${key}">No school</button>${changed?`<button type="button" data-reset="${key}">Usual (${usual})</button>`:""}<button type="button" data-cancel-ed>Cancel</button></div></form>`;
-  const txt=end==="off"?"no school":`school ends <span class="t">${esc(end)}</span>`;
-  return canWrite?`<button class="endbtn${changed?" changed":""}" data-edit="${key}" aria-label="Change when school ends">${txt}${changed?" · changed":""}</button>`:`<span>${txt}</span>`;
+function endHTML(key,end,usual,changed,lab){
+  lab=lab||"ends";
+  if(editing===key&&canWrite)return`<form class="ed" data-key="${key}"><label>School ${lab} <input type="time" name="t" value="${end==="off"?usual:esc(end)}" step="300" required></label><div class="act"><button type="submit">Save</button><button type="button" data-off="${key}">No school</button>${changed?`<button type="button" data-reset="${key}">Usual (${usual})</button>`:""}<button type="button" data-cancel-ed>Cancel</button></div></form>`;
+  const txt=end==="off"?"no school":`school ${lab} <span class="t">${esc(end)}</span>`;
+  return canWrite?`<button class="endbtn${changed?" changed":""}" data-edit="${key}" aria-label="Change when school ${lab}">${txt}${changed?" · changed":""}</button>`:`<span>${txt}</span>`;
 }
 function icilaHTML(end,key,d){
   const E=m(end);const b=l11(d).find(([dep,arr])=>m(dep)>=E+10&&m(arr)<=1080);
@@ -221,7 +269,13 @@ function render(){
       const key=KEYS[i]+"-"+c,usual=ENDS[c][L][i],ov=overrides[key],end=okTime(ov)?ov:usual,changed=okTime(ov)&&ov!==usual;
       const p=route(end,i);
       const body=p.off?`<div class="leg"><span class="pill walk">Home</span><div class="legtxt">No school, no trip</div></div>`:p.legs.map(legHTML).join("")+lastHTML(p.last);
-      return`<article class="trip"><div class="who"><b>${NAMES[c]}</b>${endHTML(key,end,usual,changed)}</div>${body}${p.alts&&p.alts.length?`<details><summary>Other options</summary><ul>${p.alts.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></details>`:""}${p.off?"":icilaHTML(end,key,i)}</article>`}).join("")+`</div></section>`;
+      const sk=key+"-start",su=STARTS[c][L][i],so=overrides[sk],start=okTime(so)?so:su,sch=okTime(so)&&so!==su;
+      const q=morning(start,i);
+      const amBody=q.off?`<div class="leg"><span class="pill walk">Home</span><div class="legtxt">No school</div></div>`:lastHTML(q.first)+q.legs.map(legHTML).join("");
+      const alts=a=>a&&a.length?`<details><summary>Other options</summary><ul>${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`:"";
+      return`<article class="trip"><div class="who"><b>${NAMES[c]}</b></div>
+        <div class="part"><div class="ph"><span>To school</span>${endHTML(sk,start,su,sch,"starts")}</div>${amBody}${alts(q.alts)}${q.off?"":amIcilaHTML(q)}</div>
+        <div class="part"><div class="ph"><span>Home</span>${endHTML(key,end,usual,changed)}</div>${body}${alts(p.alts)}${p.off?"":icilaHTML(end,key,i)}</div></article>`}).join("")+`</div></section>`;
   }).join("");
   const f=document.querySelector("form.ed input");if(f)f.focus();
 }
@@ -279,7 +333,7 @@ render();
     }else goLocal();
   }catch(e){goLocal()}
 })();
-function goLocal(){local=true;canWrite=true;$("notice").textContent="Changes to finishing times are saved on this device only.";listen()}
+function goLocal(){local=true;canWrite=true;$("notice").textContent="Changes to school times are saved on this device only.";listen()}
 }
 </script>
 </body>

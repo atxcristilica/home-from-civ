@@ -97,10 +97,10 @@ def line11_from_gtfs(raw):
         for r in csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig")):
             if r["trip_id"] in trips:
                 times.setdefault(r["trip_id"], []).append((int(r["stop_sequence"]), stops.get(r["stop_id"], ""), r["departure_time"], r["arrival_time"]))
-    result = {}
+    result, morning = {}, {}
     for i, date in sorted(days.items()):
         svc = active(date)
-        rows = set()
+        rows, am = set(), set()
         for tid, st in times.items():
             if trips[tid]["service_id"] not in svc:
                 continue
@@ -110,8 +110,11 @@ def line11_from_gtfs(raw):
             tr = [x for x in st if x[1] == TRUCS_NAME]
             if gr and cr and gr[0][0] < cr[0][0]:
                 rows.add((hm(gr[0][2]), hm(cr[0][3]), hm(tr[0][3]) if tr else hm(cr[0][3])))
+            if gr and cr and cr[0][0] < gr[-1][0]:
+                am.add((hm(cr[0][2]), hm(gr[-1][3])))
         result[str(i)] = [list(x) for x in sorted(rows)]
-    return result, end
+        morning[str(i)] = [list(x) for x in sorted(am)]
+    return result, morning, end
 
 # ---------- school lines from the PDFs ----------
 def pdf_link(line):
@@ -129,6 +132,47 @@ def pdf_text(raw):
     with tempfile.NamedTemporaryFile(suffix=".pdf") as f:
         f.write(raw); f.flush()
         return subprocess.run(["pdftotext", "-raw", f.name, "-"], capture_output=True, text=True, check=True).stdout
+
+def rows_after(lines, start):
+    rows = []
+    for l in lines[start + 1:]:
+        m = re.match(r"^(.*?)\s+((?:\d{2}:\d{2}\s*)+)$", l.strip())
+        if not m:
+            if rows:
+                break
+            continue
+        rows.append((m.group(1).strip(), re.findall(r"\d{2}:\d{2}", m.group(2))))
+    return rows
+
+def school_morning(line, text):
+    lines = text.splitlines()
+    try:
+        start = next(i for i, l in enumerate(lines) if "Aller" in l)
+    except StopIteration:
+        raise SystemExit(f"{line}: no 'Aller' section in the PDF")
+    rows = rows_after(lines, start)
+    if len(rows) < 3:
+        raise SystemExit(f"{line}: could not read the morning timetable")
+    n = len(rows[0][1])
+    find = lambda name: next((t for s_, t in rows if name.lower() in s_.lower() and len(t) == n), None)
+    moulins, rouret = find("Moulins"), find("Place du Rouret")
+    civ, gr = find("Bermond"), find("Gare Routi")
+    out = []
+    for k in range(n):
+        if moulins:
+            dep = moulins[k]
+        elif rouret:
+            h, mm = map(int, rouret[k].split(":")); t = h * 60 + mm - 5
+            dep = f"≈{t // 60:02d}:{t % 60:02d}"
+        else:
+            raise SystemExit(f"{line}: no Moulins or Place du Rouret morning times")
+        if civ:
+            out.append({"line": line, "from": "Moulins", "dep": dep, "to": "Place Bermond (CIV)", "arr": civ[k], "walk": 0, "days": [0, 1, 2, 3, 4]})
+        elif gr:
+            out.append({"line": line, "from": "Moulins", "dep": dep, "to": "Gare routière", "arr": gr[k], "walk": 5, "days": [0, 1, 2, 3, 4]})
+        else:
+            raise SystemExit(f"{line}: no CIV or gare routière morning times")
+    return out
 
 def school_from_pdf(line, text):
     lines = text.splitlines()
@@ -184,14 +228,16 @@ def main():
     raw = Path(a.gtfs).read_bytes() if a.gtfs else None
     if raw is None:
         raw = download_gtfs(sources)
-    line11, gtfs_end = line11_from_gtfs(raw)
-    school = []
+    line11, line11_am, gtfs_end = line11_from_gtfs(raw)
+    school, school_am = [], []
     for line, local in (("26S", a.pdf26), ("27S", a.pdf27)):
         if local:
             pdf = Path(local).read_bytes(); sources[line] = local
         else:
             url = pdf_link(line); pdf = fetch(url); sources[line] = url
-        school += school_from_pdf(line, pdf_text(pdf))
+        txt = pdf_text(pdf)
+        school += school_from_pdf(line, txt)
+        school_am += school_morning(line, txt)
     school.sort(key=lambda s: (s["dep"], s["line"]))
 
     # Sanity checks: refuse to publish data that would break the plan.
@@ -203,7 +249,14 @@ def main():
     if not any(s["days"] == [2] for s in school) or not any(s["days"] != [2] for s in school):
         raise SystemExit("School lines: expected both Wednesday-midday and afternoon runs.")
 
-    data = {"sources": sources, "gtfsValidUntil": gtfs_end, "line11": line11, "school": school}
+    for d, rows in line11_am.items():
+        if len(rows) < 8:
+            raise SystemExit(f"Line 11 (morning direction): only {len(rows)} trips on weekday {d}.")
+    if not school_am:
+        raise SystemExit("School lines: no morning runs found.")
+    school_am.sort(key=lambda s: (s["dep"].lstrip("≈"), s["line"]))
+    data = {"sources": sources, "gtfsValidUntil": gtfs_end, "line11": line11, "line11Morning": line11_am,
+            "school": school, "schoolMorning": school_am}
     old = json.loads(OUT.read_text()) if OUT.exists() else {}
     comparable = lambda x: {k: v for k, v in x.items() if k not in ("updated",)}
     if comparable(old) == comparable(data):
