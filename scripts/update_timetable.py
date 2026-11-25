@@ -18,6 +18,8 @@ from pathlib import Path
 
 GTFS_URL = "https://www.data.gouv.fr/api/1/datasets/r/344e5a88-e993-4952-a8bf-503048020116"
 GTFS_FALLBACK = "https://open-share.agglo-casa.fr/s/34FS2SWg36NEZk4/download"
+# transport.data.gouv.fr keeps a copy of every version; its resource page links the latest one.
+GTFS_HISTORY_PAGE = "https://transport.data.gouv.fr/resources/79342"
 LINE_PAGES = {"26S": "https://www.envibus.fr/le-reseau/ligne/ligne-26s",
               "27S": "https://www.envibus.fr/le-reseau/ligne/ligne-27s"}
 OUT = Path(__file__).resolve().parent.parent / "data" / "timetable.json"
@@ -27,10 +29,30 @@ GR_NAME = "G.R. VALBONNE SOPHIA-ANTIPOLIS"
 CR_NAME = "Opio San Peyre (College du Rouret)"
 TRUCS_NAME = "LES TRUCS"
 
-def fetch(url):
+def fetch(url, timeout=60):
     req = urllib.request.Request(url.replace(" ", "%20"), headers=UA)
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
+
+def latest_history_zip():
+    html = fetch(GTFS_HISTORY_PAGE).decode("utf-8", "replace")
+    zips = sorted(set(re.findall(r'https://[\w.-]+/79342/79342\.[\d.]+\.zip', html)))
+    if not zips:
+        raise SystemExit("No GTFS copy found on transport.data.gouv.fr")
+    return zips[-1]
+
+def download_gtfs(sources):
+    errors = []
+    for get in (lambda: GTFS_URL, lambda: GTFS_FALLBACK, latest_history_zip):
+        try:
+            url = get()
+            raw = fetch(url, timeout=45)
+            zipfile.ZipFile(io.BytesIO(raw))  # check it is a real zip
+            sources["gtfs"] = url
+            return raw
+        except Exception as e:
+            errors.append(f"{e.__class__.__name__}: {e}")
+    raise SystemExit("Could not download the Envibus GTFS file: " + " | ".join(errors))
 
 def hm(t):  # "18:15:00" -> "18:15"
     h, m = t.split(":")[:2]
@@ -161,10 +183,7 @@ def main():
     sources = {}
     raw = Path(a.gtfs).read_bytes() if a.gtfs else None
     if raw is None:
-        try:
-            raw = fetch(GTFS_URL); sources["gtfs"] = GTFS_URL
-        except Exception:
-            raw = fetch(GTFS_FALLBACK); sources["gtfs"] = GTFS_FALLBACK
+        raw = download_gtfs(sources)
     line11, gtfs_end = line11_from_gtfs(raw)
     school = []
     for line, local in (("26S", a.pdf26), ("27S", a.pdf27)):
